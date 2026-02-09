@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(pip:*)",
+      "Bash(psql:*)",
+      "Bash(docker:*)",
+      "Bash(python -m venv:*)",
+      "Bash(.venv/Scripts/python.exe -m pip:*)",
+      "Bash(.venv/Scripts/pip.exe install:*)",
+      "Bash(powershell -Command \"Start-Process ''C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe''\")",
+      "Bash(powershell -Command \"Start-Process ''C:\\\\Program Files \\(x86\\)\\\\Docker\\\\Docker\\\\Docker Desktop.exe''\")",
+      "Bash(where:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(.venv/Scripts/alembic.exe upgrade:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(curl:*)",
+      "Bash(.venv/Scripts/uvicorn.exe:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)"
+    ]
+  }
+}

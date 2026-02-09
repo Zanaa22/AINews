@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AI Daily Digest{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f4f4f7;
+      --surface: #ffffff;
+      --primary: #5b5bf0;
+      --primary-light: #e8eaf6;
+      --text: #1a1a2e;
+      --text-muted: #666680;
+      --border: #e0e0f0;
+      --accent-high: #c00;
+      --accent-medium: #c06000;
+      --accent-low: #2e7d32;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container { max-width: 780px; margin: 0 auto; padding: 20px; }
+    header {
+      background: var(--text);
+      color: #fff;
+      padding: 24px 0;
+    }
+    header .container { display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 24px; }
+    header nav a { color: #a0a0d0; text-decoration: none; margin-left: 20px; font-size: 14px; }
+    header nav a:hover { color: #fff; }
+    main { padding: 20px 0; }
+    .card {
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    a { color: var(--primary); }
+    .badge {
+      display: inline-block;
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 3px;
+      margin-right: 4px;
+    }
+    .badge-high { background: #ffe0e0; color: var(--accent-high); }
+    .badge-medium { background: #fff3e0; color: var(--accent-medium); }
+    .badge-low { background: #e8f5e9; color: var(--accent-low); }
+    .badge-cat { background: var(--primary-light); color: #3949ab; }
+    {% block extra_css %}{% endblock %}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>AI Daily Digest</h1>
+      <nav>
+        <a href="/digests">Archive</a>
+        <a href="/health">Status</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <footer>
+    <p>AI Daily Digest &mdash; automated, citation-backed AI industry updates.</p>
+  </footer>
+</body>
+</html>

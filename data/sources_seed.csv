@@ -1,0 +1,32 @@
+company_slug,company_name,product_line,source_name,source_url,fetch_method,poll_freq_min,trust_tier,priority
+openai,OpenAI,API,API Changelog,https://platform.openai.com/docs/changelog,html_diff,60,1,critical
+openai,OpenAI,Platform,Status Page,https://status.openai.com,rss,15,1,critical
+openai,OpenAI,,Blog,https://openai.com/blog,rss,120,1,high
+openai,OpenAI,API,GitHub Python SDK,https://github.com/openai/openai-python/releases,github_releases,60,1,high
+anthropic,Anthropic,API,API Changelog,https://docs.anthropic.com/en/docs/about-claude/changelog,html_diff,60,1,critical
+anthropic,Anthropic,,Status Page,https://status.anthropic.com,rss,15,1,critical
+anthropic,Anthropic,,Blog / News,https://www.anthropic.com/news,rss,120,1,high
+anthropic,Anthropic,API,GitHub Python SDK,https://github.com/anthropics/anthropic-sdk-python/releases,github_releases,60,1,high
+google,Google,Gemini API,Changelog,https://ai.google.dev/changelog,html_diff,60,1,critical
+google,Google,Vertex AI,Release Notes,https://cloud.google.com/vertex-ai/docs/release-notes,rss,60,1,critical
+google,Google,,AI Blog,https://blog.google/technology/ai/,rss,120,1,high
+meta,Meta,Llama,GitHub Releases,https://github.com/meta-llama,github_releases,120,1,high
+meta,Meta,,AI Blog,https://ai.meta.com/blog/,rss,180,1,high
+mistral,Mistral AI,API,Changelog,https://docs.mistral.ai/changelog/,html_diff,60,1,high
+mistral,Mistral AI,,GitHub Releases,https://github.com/mistralai,github_releases,120,1,high
+cohere,Cohere,API,Changelog,https://docs.cohere.com/changelog,html_diff,60,1,high
+aws,AWS,Bedrock,What's New,https://aws.amazon.com/about-aws/whats-new/,rss,60,1,high
+microsoft,Microsoft,Azure OpenAI,Release Notes,https://learn.microsoft.com/en-us/azure/ai-services/openai/whats-new,html_diff,60,1,high
+huggingface,Hugging Face,Hub,Blog,https://huggingface.co/blog,rss,120,1,high
+langchain,LangChain,,GitHub Releases,https://github.com/langchain-ai/langchain/releases,github_releases,60,1,high
+llamaindex,LlamaIndex,,GitHub Releases,https://github.com/run-llama/llama_index/releases,github_releases,60,1,high
+vercel,Vercel,AI SDK,GitHub Releases,https://github.com/vercel/ai/releases,github_releases,60,1,high
+stability,Stability AI,,Blog,https://stability.ai/news,rss,180,1,normal
+replicate,Replicate,,Blog/Changelog,https://replicate.com/changelog,html_diff,120,1,normal
+together,Together AI,,Blog,https://www.together.ai/blog,rss,180,1,normal
+groq,Groq,API,Changelog,https://console.groq.com/docs/changelog,html_diff,60,1,high
+,Community,HN,Hacker News Show HN,https://hn.algolia.com/api/v1/search?tags=show_hn,api_poll,30,4,normal
+,Community,Reddit,r/MachineLearning,https://www.reddit.com/r/MachineLearning/.rss,rss,30,4,normal
+,Community,Reddit,r/LocalLLaMA,https://www.reddit.com/r/LocalLLaMA/.rss,rss,30,4,normal
+,Community,PH,Product Hunt AI,https://www.producthunt.com/topics/artificial-intelligence,api_poll,60,4,normal
+,Community,GitHub,GitHub Trending ML,https://github.com/trending?since=daily,html_diff,60,4,normal

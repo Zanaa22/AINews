@@ -1,0 +1,37 @@
+{% extends "web/base.html" %}
+
+{% block title %}AI Daily Digest — Archive{% endblock %}
+
+{% block extra_css %}
+  .digest-list { list-style: none; padding: 0; }
+  .digest-list li {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .digest-list li:last-child { border-bottom: none; }
+  .digest-date { font-size: 17px; font-weight: 600; }
+  .digest-meta { font-size: 13px; color: var(--text-muted); }
+{% endblock %}
+
+{% block content %}
+  <h2>Digest Archive</h2>
+  <div class="card">
+    {% if digests %}
+    <ul class="digest-list">
+      {% for d in digests %}
+      <li>
+        <div>
+          <a href="{{ d.url }}" class="digest-date">{{ d.date }}</a>
+        </div>
+        <div class="digest-meta">{{ d.event_count }} items</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No digests generated yet.</p>
+    {% endif %}
+  </div>
+{% endblock %}
