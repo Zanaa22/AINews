@@ -72,11 +72,15 @@ def allocate_sections(events: list[UpdateEvent]) -> DigestSections:
     assigned_ids = {e.event_id for e in sections.top5}
     remaining = [e for e in events if e.event_id not in assigned_ids]
 
-    # Route remaining events by category
+    # Route remaining events: community sources → radar first, then by category
     for event in remaining:
         cats = set(event.categories)
 
-        if cats & SECTION_DEVELOPER and len(sections.developer) < SECTION_QUOTAS["developer"]:
+        # Community sources (trust_tier 4) always go to radar first
+        if event.trust_tier == 4 and len(sections.radar) < SECTION_QUOTAS["radar"]:
+            sections.radar.append(event)
+            assigned_ids.add(event.event_id)
+        elif cats & SECTION_DEVELOPER and len(sections.developer) < SECTION_QUOTAS["developer"]:
             sections.developer.append(event)
             assigned_ids.add(event.event_id)
         elif cats & SECTION_MODELS and len(sections.models) < SECTION_QUOTAS["models"]:
@@ -87,9 +91,6 @@ def allocate_sections(events: list[UpdateEvent]) -> DigestSections:
             assigned_ids.add(event.event_id)
         elif cats & SECTION_INCIDENTS and len(sections.incidents) < SECTION_QUOTAS["incidents"]:
             sections.incidents.append(event)
-            assigned_ids.add(event.event_id)
-        elif event.trust_tier == 4 and len(sections.radar) < SECTION_QUOTAS["radar"]:
-            sections.radar.append(event)
             assigned_ids.add(event.event_id)
 
     # Everything else: all remaining events not yet assigned

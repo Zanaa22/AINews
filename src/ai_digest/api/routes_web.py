@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from html import escape as _esc
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
@@ -209,9 +210,6 @@ def _page(title: str, body: str) -> str:
       background: rgba(108,99,255,0.04);
       border-radius: 6px;
       border-left: 3px solid var(--primary);
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
       overflow: hidden;
       max-height: 4.5em;
     }}
@@ -305,10 +303,8 @@ def _page(title: str, body: str) -> str:
       color: var(--text-muted);
       line-height: 1.4;
       margin-top: 3px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
       overflow: hidden;
+      max-height: 2.8em;
     }}
     .compact-event .ce-company {{
       font-size: 12px;
@@ -412,13 +408,13 @@ async def homepage(db: AsyncSession = Depends(get_session)):
             text = d.overview_text[:180]
             if len(d.overview_text) > 180:
                 text += "..."
-            overview_snippet = f'<div class="card-summary">{text}</div>'
+            overview_snippet = f'<div class="card-summary">{_esc(text)}</div>'
 
         top_evs = top_events_by_digest.get(str(d.digest_id), [])
         preview_items = ""
         for ev in top_evs:
             sev_class = ev.severity.lower() if ev.severity else "low"
-            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {ev.title}</div>'
+            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {_esc(ev.title)}</div>'
 
         digest_cards += f"""
         <a href="/view/{d.digest_date.isoformat()}" class="card" style="display:block;">
@@ -483,13 +479,13 @@ async def archive_page(db: AsyncSession = Depends(get_session)):
             text = d.overview_text[:180]
             if len(d.overview_text) > 180:
                 text += "..."
-            overview_snippet = f'<div class="card-summary">{text}</div>'
+            overview_snippet = f'<div class="card-summary">{_esc(text)}</div>'
 
         top_evs = top_events_by_digest.get(str(d.digest_id), [])
         preview_items = ""
         for ev in top_evs:
             sev_class = ev.severity.lower() if ev.severity else "low"
-            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {ev.title}</div>'
+            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {_esc(ev.title)}</div>'
 
         cards += f"""
         <a href="/view/{d.digest_date.isoformat()}" class="card" style="display:block;">
@@ -655,19 +651,19 @@ async def view_digest(
         # Tags row
         tags = f'<span class="badge badge-{sev_class}">{ev.severity}</span>'
         for c in (ev.categories or [])[:3]:
-            tags += f'<span class="badge badge-cat">{c}</span>'
+            tags += f'<span class="badge badge-cat">{_esc(c)}</span>'
         if ev.breaking_change:
             tags += '<span class="badge badge-high">BREAKING</span>'
 
         # Summary text — try dedicated fields, fall back to first what_changed fact
-        summary_text = ev.summary_short or ev.summary_medium or ev.why_it_matters or ""
+        summary_text = _esc(ev.summary_short or ev.summary_medium or ev.why_it_matters or "")
         if not summary_text and ev.what_changed and isinstance(ev.what_changed, list):
             for item in ev.what_changed:
                 if isinstance(item, dict) and item.get("fact"):
-                    summary_text = item["fact"]
+                    summary_text = _esc(item["fact"])
                     break
                 elif isinstance(item, str) and item.strip():
-                    summary_text = item
+                    summary_text = _esc(item)
                     break
 
         # What changed
@@ -676,18 +672,18 @@ async def view_digest(
             items = ""
             for item in ev.what_changed:
                 if isinstance(item, dict):
-                    fact = item.get("fact", "")
+                    fact = _esc(item.get("fact", ""))
                     cite = item.get("citation_url", "")
-                    cite_link = f' <a href="{cite}" target="_blank">[src]</a>' if cite else ""
+                    cite_link = f' <a href="{_esc(cite)}" target="_blank">[src]</a>' if cite else ""
                     items += f"<li>{fact}{cite_link}</li>"
                 else:
-                    items += f"<li>{item}</li>"
+                    items += f"<li>{_esc(str(item))}</li>"
             what_changed_html = f'<span class="label">What changed</span><ul>{items}</ul>'
 
         # Why it matters
         why_html = ""
         if ev.why_it_matters:
-            why_html = f'<span class="label">Why it matters</span><p>{ev.why_it_matters}</p>'
+            why_html = f'<span class="label">Why it matters</span><p>{_esc(ev.why_it_matters)}</p>'
 
         # Source links
         source_links = ""
@@ -703,13 +699,17 @@ async def view_digest(
         if ev.published_at:
             meta_right = ev.published_at.strftime('%b %d, %H:%M') + " &middot; " + meta_right
 
+        title = _esc(ev.title)
+        company = _esc(ev.company_name or "")
+        product = _esc(ev.product_line or "")
+
         return f"""
         <div class="event-card severity-{sev_class}">
           <div class="event-header">
-            <div class="event-title">{rank_html}{ev.title}</div>
+            <div class="event-title">{rank_html}{title}</div>
           </div>
           <div class="event-tags">{tags}</div>
-          <div class="event-company-line">{ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}</div>
+          <div class="event-company-line">{company}{(' / ' + product) if product else ''}</div>
           {"<div class='event-summary'>" + summary_text + "</div>" if summary_text else ""}
           <div class="event-body">{what_changed_html}{why_html}</div>
           <div class="event-footer">
@@ -722,23 +722,23 @@ async def view_digest(
         sev_class = ev.severity.lower() if ev.severity else "low"
         link = ""
         if ev.citations:
-            link = f'<a href="{ev.citations[0]}" target="_blank">{_extract_domain(ev.citations[0])}</a>'
-        summary = ev.summary_short or ev.summary_medium or ev.why_it_matters or ""
+            link = f'<a href="{_esc(ev.citations[0])}" target="_blank">{_esc(_extract_domain(ev.citations[0]))}</a>'
+        summary = _esc(ev.summary_short or ev.summary_medium or ev.why_it_matters or "")
         if not summary and ev.what_changed and isinstance(ev.what_changed, list):
             for item in ev.what_changed:
                 if isinstance(item, dict) and item.get("fact"):
-                    summary = item["fact"]
+                    summary = _esc(item["fact"])
                     break
                 elif isinstance(item, str) and item.strip():
-                    summary = item
+                    summary = _esc(item)
                     break
         summary_html = f'<div class="ce-summary">{summary}</div>' if summary else ""
         return f"""
         <div class="compact-event">
           <span class="badge badge-{sev_class}" style="flex-shrink:0;">{ev.severity}</span>
-          <span class="ce-company">{ev.company_name}</span>
+          <span class="ce-company">{_esc(ev.company_name or "")}</span>
           <div class="ce-content">
-            <span class="ce-title">{ev.title}</span>
+            <span class="ce-title">{_esc(ev.title)}</span>
             {summary_html}
           </div>
           {link}
@@ -786,7 +786,7 @@ async def view_digest(
           Download Log
         </a>
       </div>
-      {"<div class='card' style='border-left:3px solid var(--primary);'><p>" + digest.overview_text + "</p></div>" if digest.overview_text else ""}
+      {"<div class='card' style='border-left:3px solid var(--primary);'><p>" + _esc(digest.overview_text) + "</p></div>" if digest.overview_text else ""}
       {content}
     </div>"""
 
