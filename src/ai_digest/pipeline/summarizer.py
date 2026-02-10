@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 import anthropic
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_digest.models.raw_item import RawItem
 from ai_digest.models.update_event import UpdateEvent
 from ai_digest.taxonomy import CATEGORY_NAMES
 
 logger = logging.getLogger(__name__)
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
 
 SYSTEM_PROMPT = """\
 You are a factual AI news summarizer. Your job is to produce structured
@@ -74,13 +81,14 @@ async def summarize_event(
     event: UpdateEvent,
     client: anthropic.AsyncAnthropic,
     context_items: list[str] | None = None,
+    raw_content: str | None = None,
 ) -> UpdateEvent:
     """Call Claude API to generate a grounded summary for an event.
 
     Populates: what_changed, why_it_matters, action_items, evidence_snippets,
     summary_short, summary_medium, and optionally adjusts severity/categories.
     """
-    content = _build_content(event)
+    content = _build_content(event, raw_content)
     if not content:
         logger.warning("No content to summarize for event %s", event.title)
         return event
@@ -129,23 +137,60 @@ async def summarize_event(
 async def summarize_batch(
     events: list[UpdateEvent],
     client: anthropic.AsyncAnthropic,
+    db: AsyncSession | None = None,
 ) -> list[UpdateEvent]:
     """Summarize a batch of events sequentially."""
+    raw_map: dict[Any, str] = {}
+    if db:
+        raw_ids = [ev.raw_item_id for ev in events if ev.raw_item_id]
+        if raw_ids:
+            result = await db.execute(
+                select(
+                    RawItem.raw_item_id,
+                    RawItem.content_text,
+                    RawItem.content_html,
+                    RawItem.title,
+                ).where(RawItem.raw_item_id.in_(raw_ids))
+            )
+            for row in result:
+                raw_map[row.raw_item_id] = (
+                    row.content_text
+                    or row.content_html
+                    or row.title
+                    or ""
+                )
     for event in events:
         if event.summary_short:
             continue  # already summarized
-        await summarize_event(event, client)
+        raw_content = getattr(event, "_raw_content", None) or raw_map.get(event.raw_item_id)
+        await summarize_event(event, client, raw_content=raw_content)
     logger.info("Summarized %d events", len(events))
     return events
 
 
-def _build_content(event: UpdateEvent) -> str:
+def _clean_content(text: str) -> str:
+    clean = _TAG_RE.sub(" ", text)
+    return re.sub(r"\s+", " ", clean).strip()
+
+
+def _is_readable(text: str, min_words: int = 3) -> bool:
+    words = text.split()
+    if len(words) < min_words:
+        return False
+    alpha_words = sum(1 for w in words if _ALPHA_RE.search(w))
+    return alpha_words / len(words) > 0.3
+
+
+def _build_content(event: UpdateEvent, raw_content: str | None = None) -> str:
     """Build the source content string for the LLM prompt."""
     parts = []
     if event.title:
         parts.append(f"Title: {event.title}")
-    # We don't have raw content on the event — in the full pipeline,
-    # we'd join from raw_item. For now, use available fields.
+    if raw_content:
+        clean = _clean_content(raw_content)
+        if clean and _is_readable(clean, min_words=1):
+            parts.append(f"Content: {clean}")
+    # Include any existing structured fields as extra context.
     if event.what_changed:
         for item in event.what_changed:
             if isinstance(item, dict):

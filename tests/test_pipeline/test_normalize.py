@@ -59,3 +59,19 @@ def test_normalize_item_fallback_title(sample_source):
     )
     event = normalize_item(raw_data, raw_item, sample_source)
     assert event.title == "Some content here about a change"
+
+
+def test_normalize_item_numeric_title_uses_company_fallback(sample_source):
+    raw_data = RawItemData(
+        url="https://example.com",
+        title="123456",
+        content_text="1 2 3",
+    )
+    raw_item = RawItem(
+        raw_item_id=uuid.uuid4(),
+        source_id=sample_source.source_id,
+        url="https://example.com",
+        content_hash="abc",
+    )
+    event = normalize_item(raw_data, raw_item, sample_source)
+    assert event.title == "TestCo update"

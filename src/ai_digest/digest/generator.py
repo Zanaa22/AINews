@@ -82,7 +82,7 @@ async def generate_digest(
             sections.top5 + sections.developer + sections.models
             + sections.pricing + sections.incidents
         )
-        await summarize_batch(all_events, anthropic_client)
+        await summarize_batch(all_events, anthropic_client, db)
 
     # 5. Generate overview
     overview = _generate_overview(sections)

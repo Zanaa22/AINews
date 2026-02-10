@@ -155,7 +155,7 @@ async def pipeline_job() -> None:
                 anthropic_client = anthropic.AsyncAnthropic(
                     api_key=settings.anthropic_api_key
                 )
-                await summarize_batch(events, anthropic_client)
+                await summarize_batch(events, anthropic_client, db)
 
             for event in events:
                 db.add(event)

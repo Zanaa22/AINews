@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -12,6 +13,30 @@ from ai_digest.models.source import Source
 from ai_digest.models.update_event import UpdateEvent
 
 logger = logging.getLogger(__name__)
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
+_REPO_RE = re.compile(r"([\w.-]+)\s*/\s*([\w.-]+)")
+
+
+def _strip_markup(text: str) -> str:
+    clean = _TAG_RE.sub(" ", text)
+    return re.sub(r"\s+", " ", clean).strip()
+
+
+def _is_readable(text: str, min_words: int = 3) -> bool:
+    words = text.split()
+    if len(words) < min_words:
+        return False
+    alpha_words = sum(1 for w in words if _ALPHA_RE.search(w))
+    return alpha_words / len(words) > 0.3
+
+
+def _extract_repo_title(text: str) -> str | None:
+    m = _REPO_RE.search(text)
+    if not m:
+        return None
+    return f"{m.group(1)}/{m.group(2)}"
 
 
 def normalize_item(
@@ -25,9 +50,17 @@ def normalize_item(
     are left at defaults and filled in by later pipeline stages.
     """
     title = (raw.title or "").strip()
-    if not title:
-        # Fallback: first 100 chars of content
-        title = (raw.content_text or "")[:100].strip() or "Untitled"
+    content_text = raw.content_text or ""
+    if not title or not _is_readable(title, min_words=1):
+        repo = _extract_repo_title(title) or _extract_repo_title(content_text)
+        if repo:
+            title = repo
+        else:
+            clean = _strip_markup(content_text)
+            if clean and _is_readable(clean, min_words=2):
+                title = clean[:100].strip()
+            else:
+                title = f"{source.company_name} update"
 
     return UpdateEvent(
         event_id=uuid.uuid4(),
