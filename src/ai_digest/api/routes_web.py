@@ -625,6 +625,17 @@ async def view_digest(
         if ev.breaking_change:
             tags += '<span class="badge badge-high">BREAKING</span>'
 
+        # Summary text — try dedicated fields, fall back to first what_changed fact
+        summary_text = ev.summary_short or ev.summary_medium or ev.why_it_matters or ""
+        if not summary_text and ev.what_changed and isinstance(ev.what_changed, list):
+            for item in ev.what_changed:
+                if isinstance(item, dict) and item.get("fact"):
+                    summary_text = item["fact"]
+                    break
+                elif isinstance(item, str) and item.strip():
+                    summary_text = item
+                    break
+
         # What changed
         what_changed_html = ""
         if ev.what_changed and isinstance(ev.what_changed, list):
@@ -665,7 +676,7 @@ async def view_digest(
           </div>
           <div class="event-tags">{tags}</div>
           <div class="event-company-line">{ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}</div>
-          <div class="event-summary">{ev.summary_short or ev.summary_medium or ev.why_it_matters or ''}</div>
+          {"<div class='event-summary'>" + summary_text + "</div>" if summary_text else ""}
           <div class="event-body">{what_changed_html}{why_html}</div>
           <div class="event-footer">
             {source_links}
@@ -679,6 +690,14 @@ async def view_digest(
         if ev.citations:
             link = f'<a href="{ev.citations[0]}" target="_blank">{_extract_domain(ev.citations[0])}</a>'
         summary = ev.summary_short or ev.summary_medium or ev.why_it_matters or ""
+        if not summary and ev.what_changed and isinstance(ev.what_changed, list):
+            for item in ev.what_changed:
+                if isinstance(item, dict) and item.get("fact"):
+                    summary = item["fact"]
+                    break
+                elif isinstance(item, str) and item.strip():
+                    summary = item
+                    break
         summary_html = f'<div class="ce-summary">{summary}</div>' if summary else ""
         return f"""
         <div class="compact-event">
