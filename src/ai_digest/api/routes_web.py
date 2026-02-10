@@ -187,6 +187,70 @@ def _page(title: str, body: str) -> str:
       letter-spacing: 2px; color: var(--primary-light);
       margin: 40px 0 20px; padding-bottom: 12px;
       border-bottom: 2px solid var(--border);
+      flex: 1;
+    }}
+    .section-header {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }}
+    .section-toggle {{
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, color 0.2s, transform 0.2s;
+    }}
+    .section-toggle:hover {{
+      border-color: var(--primary-light);
+      color: var(--primary-light);
+    }}
+    .section-toggle .chev {{
+      display: block;
+      transition: transform 0.2s ease;
+    }}
+    .section.section-collapsed .section-toggle .chev {{
+      transform: rotate(-90deg);
+    }}
+    .section-body {{
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+    }}
+    .section-body .section-inner {{
+      overflow: hidden;
+    }}
+    .section.section-collapsed .section-body {{
+      grid-template-rows: 0fr;
+      opacity: 0;
+      pointer-events: none;
+    }}
+
+    /* Filters */
+    .filter-bar {{
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin: 12px 0 24px;
+    }}
+    .filter-chip {{
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }}
+    .filter-chip.active {{
+      background: rgba(108,99,255,0.16);
+      border-color: var(--primary-light);
+      color: var(--primary-light);
     }}
 
     /* Badges */
@@ -705,6 +769,7 @@ async def view_digest(
         return HTMLResponse(_page("Not Found", '<div class="container"><h2>Digest not found</h2><p><a href="/archive">Back to archive</a></p></div>'), status_code=404)
 
     sections = _group_events(events)
+    all_categories = sorted({c for ev in events for c in (ev.categories or [])})
 
     def _extract_domain(url: str) -> str:
         """Extract a short domain label from a URL."""
@@ -777,8 +842,10 @@ async def view_digest(
         company = _esc(ev.company_name or "")
         product = _esc(ev.product_line or "")
 
+        cats_attr = _esc("|".join(ev.categories or []))
+
         return f"""
-        <div class="event-card severity-{sev_class}">
+        <div class="event-card severity-{sev_class}" data-cats="{cats_attr}">
           <div class="event-header">
             <div class="event-title">{rank_html}{title}</div>
           </div>
@@ -807,8 +874,9 @@ async def view_digest(
                     summary = _esc(item)
                     break
         summary_html = f'<div class="ce-summary">{summary}</div>' if summary else ""
+        cats_attr = _esc("|".join(ev.categories or []))
         return f"""
-        <div class="compact-event">
+        <div class="compact-event" data-cats="{cats_attr}">
           <span class="badge badge-{sev_class}" style="flex-shrink:0;">{ev.severity}</span>
           <span class="ce-company">{_esc(ev.company_name or "")}</span>
           <div class="ce-content">
@@ -826,20 +894,39 @@ async def view_digest(
         if not sections[sec_key]:
             continue
         label = f"[{idx}] {SECTION_LABELS[sec_key]}"
+        section_id = f"section-{sec_key}"
         if sec_key == "everything_else":
             items = "".join(render_compact(ev) for ev in sections[sec_key])
-            content += f'<div class="section-title">{label}</div><div class="card">{items}</div>'
+            inner = f'<div class="card">{items}</div>'
         elif sec_key == "top5":
             items = "".join(render_event(ev, i + 1) for i, ev in enumerate(sections[sec_key]))
-            content += f'<div class="section-title">{label}</div>{items}'
+            inner = items
         else:
             items = "".join(render_event(ev) for ev in sections[sec_key])
-            content += f'<div class="section-title">{label}</div>{items}'
+            inner = items
+
+        content += f"""
+        <section class="section" data-section="{sec_key}">
+          <div class="section-header">
+            <div class="section-title">{label}</div>
+            <button class="section-toggle" data-target="{section_id}" aria-controls="{section_id}" aria-expanded="true">
+              <span class="chev">▾</span>
+            </button>
+          </div>
+          <div id="{section_id}" class="section-body">
+            <div class="section-inner">{inner}</div>
+          </div>
+        </section>"""
 
     # Severity summary counts
     high_ct = sum(1 for ev in events if ev.severity == "HIGH")
     med_ct = sum(1 for ev in events if ev.severity == "MEDIUM")
     low_ct = sum(1 for ev in events if ev.severity == "LOW")
+
+    # Filter UI
+    filter_chips = "<button class='filter-chip active' data-filter='all'>All</button>"
+    for cat in all_categories:
+        filter_chips += f"<button class='filter-chip' data-filter='{_esc(cat)}'>{_esc(cat)}</button>"
 
     body = f"""
     <div class="container">
@@ -860,11 +947,72 @@ async def view_digest(
           Download Log
         </a>
       </div>
+      <div class="filter-bar" aria-label="Category filters">
+        {filter_chips}
+      </div>
       {"<div class='card' style='border-left:3px solid var(--primary);'><p>" + _esc(digest.overview_text) + "</p></div>" if digest.overview_text else ""}
       {content}
     </div>"""
 
-    return HTMLResponse(_page(digest_date.strftime('%B %d, %Y'), body))
+    # Add simple JS for collapsible sections + filters
+    script = """
+    <script>
+    (function() {
+      const sections = Array.from(document.querySelectorAll('.section'));
+      document.querySelectorAll('.section-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const section = btn.closest('.section');
+          const collapsed = section.classList.toggle('section-collapsed');
+          btn.setAttribute('aria-expanded', (!collapsed).toString());
+        });
+      });
+
+      const chips = Array.from(document.querySelectorAll('.filter-chip'));
+      const allChip = document.querySelector('.filter-chip[data-filter="all"]');
+
+      function applyFilters() {
+        const active = chips
+          .filter(c => c.classList.contains('active'))
+          .map(c => c.dataset.filter)
+          .filter(f => f && f !== 'all');
+        const showAll = active.length === 0;
+
+        document.querySelectorAll('[data-cats]').forEach(card => {
+          const raw = card.dataset.cats || '';
+          const cats = raw ? raw.split('|') : [];
+          const match = showAll || active.some(a => cats.includes(a));
+          card.style.display = match ? '' : 'none';
+        });
+
+        sections.forEach(section => {
+          const visible = Array.from(section.querySelectorAll('[data-cats]'))
+            .some(el => el.style.display !== 'none');
+          section.style.display = visible ? '' : 'none';
+        });
+      }
+
+      chips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          const isAll = chip.dataset.filter === 'all';
+          if (isAll) {
+            chips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+          } else {
+            chip.classList.toggle('active');
+            if (allChip) allChip.classList.remove('active');
+            const anyActive = chips.some(c => c.dataset.filter !== 'all' && c.classList.contains('active'));
+            if (!anyActive && allChip) allChip.classList.add('active');
+          }
+          applyFilters();
+        });
+      });
+
+      applyFilters();
+    })();
+    </script>
+    """
+
+    return HTMLResponse(_page(digest_date.strftime('%B %d, %Y'), body + script))
 
 
 @router.get("/view/{digest_date}/download")
