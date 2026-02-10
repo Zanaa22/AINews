@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -19,6 +20,16 @@ from ai_digest.pipeline.dedupe import soft_dedupe_and_cluster
 from ai_digest.pipeline.summarizer import summarize_batch
 
 logger = logging.getLogger(__name__)
+
+_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
+_NOISE_TITLES = {
+    "community update",
+    "community updates",
+    "update",
+    "updates",
+    "announcement",
+    "announcements",
+}
 
 
 async def generate_digest(
@@ -73,6 +84,14 @@ async def generate_digest(
     # 2. Re-cluster
     events = await soft_dedupe_and_cluster(events, db)
 
+    # 2b. Drop noise + dedupe across runs
+    events = _dedupe_events(events)
+    events = [e for e in events if not _is_noise_event(e)]
+
+    if not events:
+        logger.warning("No usable events after filtering for %s", target_date)
+        return None
+
     # 3. Allocate sections
     sections = allocate_sections(events)
 
@@ -102,8 +121,17 @@ async def generate_digest(
     )
     db.add(digest)
 
-    # Mark events as assigned to this digest
-    event_ids = [e.event_id for e in events]
+    # Mark events as assigned to this digest (only those included in sections)
+    assigned_events = (
+        sections.top5
+        + sections.developer
+        + sections.models
+        + sections.pricing
+        + sections.incidents
+        + sections.radar
+        + sections.everything_else
+    )
+    event_ids = [e.event_id for e in assigned_events]
     await db.execute(
         update(UpdateEvent)
         .where(UpdateEvent.event_id.in_(event_ids))
@@ -134,3 +162,65 @@ def _generate_overview(sections: DigestSections) -> str:
         highlights.append(f"{event.company_name}: {event.title}")
 
     return "Today: " + ". ".join(highlights) + "."
+
+
+def _normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", title.strip().lower())
+
+
+def _is_readable_title(title: str) -> bool:
+    words = title.split()
+    if len(words) == 1:
+        word = words[0]
+        return bool(_ALPHA_RE.search(word)) and len(word) >= 4
+    if len(words) < 2:
+        return False
+    alpha_words = sum(1 for w in words if _ALPHA_RE.search(w))
+    return alpha_words / len(words) > 0.3
+
+
+def _looks_like_star_count(text: str) -> bool:
+    lower = text.lower()
+    if "stars today" in lower:
+        return True
+    # mostly numbers and punctuation
+    return bool(re.fullmatch(r"[\d,\s]+", text.strip()))
+
+
+def _is_noise_event(event: UpdateEvent) -> bool:
+    title = event.title or ""
+    norm = _normalize_title(title)
+    if _looks_like_star_count(title):
+        return True
+    if event.trust_tier >= 4:
+        if norm in _NOISE_TITLES:
+            return True
+        if not _is_readable_title(title):
+            return True
+    return False
+
+
+def _dedupe_events(events: list[UpdateEvent]) -> list[UpdateEvent]:
+    """Collapse obvious duplicates across runs (same title/company or cluster)."""
+    if not events:
+        return events
+    seen_clusters: set[uuid.UUID] = set()
+    seen_keys: set[tuple[str, str, str]] = set()
+    deduped: list[UpdateEvent] = []
+
+    for ev in events:
+        if ev.cluster_id and ev.cluster_id in seen_clusters:
+            continue
+        key = (
+            (ev.company_slug or "").lower(),
+            (ev.product_line or "").lower(),
+            _normalize_title(ev.title or ""),
+        )
+        if key in seen_keys:
+            continue
+        deduped.append(ev)
+        if ev.cluster_id:
+            seen_clusters.add(ev.cluster_id)
+        seen_keys.add(key)
+
+    return deduped

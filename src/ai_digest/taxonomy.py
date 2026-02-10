@@ -133,7 +133,7 @@ SECTION_QUOTAS: dict[str, int] = {
     "models": 8,
     "pricing": 5,
     "incidents": 5,
-    "radar": 6,
+    "radar": 3,
     "everything_else": 0,
 }
 

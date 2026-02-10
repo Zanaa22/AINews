@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from ai_digest.digest.generator import _generate_overview
+from ai_digest.digest.generator import _dedupe_events, _generate_overview, _is_noise_event
 from ai_digest.digest.sections import DigestSections
 from ai_digest.models.update_event import UpdateEvent
 
@@ -49,3 +49,16 @@ def test_generate_overview_empty():
     sections = DigestSections()
     overview = _generate_overview(sections)
     assert "No major" in overview
+
+
+def test_dedupe_events_by_title():
+    ev1 = _make_event("Patch update v1.2.3", 0.8)
+    ev2 = _make_event("Patch update v1.2.3", 0.6)
+    deduped = _dedupe_events([ev1, ev2])
+    assert len(deduped) == 1
+    assert deduped[0].title == "Patch update v1.2.3"
+
+
+def test_noise_event_star_count():
+    ev = _make_event("17,167 stars today 13,517", 0.2, trust_tier=4)
+    assert _is_noise_event(ev) is True

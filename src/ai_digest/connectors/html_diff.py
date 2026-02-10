@@ -124,6 +124,7 @@ class HTMLDiffConnector(BaseConnector):
 
 
 _REPO_RE = re.compile(r"([\w.-]+)\s*/\s*([\w.-]+)")
+_ALPHA_RE = re.compile(r"[A-Za-z]{2,}")
 
 
 def _extract_title(block: str) -> str:
@@ -143,6 +144,21 @@ def _extract_title(block: str) -> str:
     return block.split("\n")[0][:120]
 
 
+def _is_readable(text: str, min_words: int = 2) -> bool:
+    words = text.split()
+    if len(words) < min_words:
+        return False
+    alpha_words = sum(1 for w in words if _ALPHA_RE.search(w))
+    return alpha_words / len(words) > 0.3
+
+
+def _looks_like_star_count(text: str) -> bool:
+    lower = text.lower()
+    if "stars today" in lower:
+        return True
+    return bool(re.fullmatch(r"[\d,\s]+", text.strip()))
+
+
 def _split_changes_into_items(change_text: str, source: Source) -> list[RawItemData]:
     """Split a block of changed text into individual items.
 
@@ -158,6 +174,10 @@ def _split_changes_into_items(change_text: str, source: Source) -> list[RawItemD
     items: list[RawItemData] = []
     for i, block in enumerate(blocks):
         title = _extract_title(block)
+        if _looks_like_star_count(title) or _looks_like_star_count(block):
+            continue
+        if not _is_readable(title) and not _REPO_RE.search(block):
+            continue
         items.append(
             RawItemData(
                 external_id=hashlib.sha256(block.encode()).hexdigest()[:16],
