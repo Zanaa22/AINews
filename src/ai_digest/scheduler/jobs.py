@@ -144,11 +144,18 @@ async def pipeline_job() -> None:
                 )
                 pairs.append((rid, ri))
 
-            # Pipeline: normalize → entity resolve → rank
+            # Pipeline: normalize → entity resolve → rank → summarize
             events = await normalize_batch(pairs, source)
             events = await resolve_entities(events, source)
             events = await rank_events(events)
             events = await soft_dedupe_and_cluster(events, db)
+
+            # Summarize if Anthropic key is available
+            if settings.anthropic_api_key:
+                anthropic_client = anthropic.AsyncAnthropic(
+                    api_key=settings.anthropic_api_key
+                )
+                await summarize_batch(events, anthropic_client)
 
             for event in events:
                 db.add(event)

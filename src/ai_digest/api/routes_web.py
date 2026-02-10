@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ai_digest.config import settings
 from ai_digest.database import get_session
 from ai_digest.models.digest import Digest
+from ai_digest.models.raw_item import RawItem
 from ai_digest.models.source import Source
 from ai_digest.models.update_event import UpdateEvent
 
@@ -560,7 +561,26 @@ async def _load_digest_and_events(
         .where(UpdateEvent.digest_id == digest.digest_id)
         .order_by(UpdateEvent.impact_score.desc())
     )
-    return digest, list(events_result.scalars().all())
+    events = list(events_result.scalars().all())
+
+    # Backfill description from raw_items for events missing summaries
+    needs_backfill = [
+        ev for ev in events
+        if not ev.summary_short and not ev.why_it_matters
+    ]
+    if needs_backfill:
+        raw_ids = [ev.raw_item_id for ev in needs_backfill]
+        raw_result = await db.execute(
+            select(RawItem.raw_item_id, RawItem.content_text)
+            .where(RawItem.raw_item_id.in_(raw_ids))
+        )
+        raw_texts = {row.raw_item_id: row.content_text for row in raw_result}
+        for ev in needs_backfill:
+            text = raw_texts.get(ev.raw_item_id)
+            if text:
+                ev.summary_short = text[:300]
+
+    return digest, events
 
 
 def _group_events(events: list[UpdateEvent]) -> dict[str, list[UpdateEvent]]:
