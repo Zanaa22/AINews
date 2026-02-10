@@ -91,14 +91,21 @@ def _parse_date(entry) -> datetime | None:
 
 
 def _extract_content(entry) -> str | None:
-    """Get plain-text content from feed entry."""
+    """Get plain-text content from feed entry, stripping HTML tags."""
+    import re
+    raw = None
     # Prefer summary, fall back to content
     if summary := entry.get("summary"):
-        return summary
-    content_list = entry.get("content", [])
-    if content_list:
-        return content_list[0].get("value")
-    return None
+        raw = summary
+    else:
+        content_list = entry.get("content", [])
+        if content_list:
+            raw = content_list[0].get("value")
+    if not raw:
+        return None
+    # Strip HTML tags — RSS feeds (esp. Reddit) embed raw HTML
+    clean = re.sub(r"<[^>]+>", " ", raw)
+    return re.sub(r"\s+", " ", clean).strip() or raw
 
 
 def _extract_html(entry) -> str | None:

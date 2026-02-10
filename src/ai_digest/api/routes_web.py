@@ -48,6 +48,37 @@ def _is_readable(text: str) -> bool:
     return alpha_words / len(words) > 0.3
 
 
+_REPO_RE = re.compile(r"([\w.-]+)\s*/\s*([\w.-]+)")
+
+
+def _extract_repo_info(text: str) -> tuple[str, str] | None:
+    """Try to extract 'owner/repo Description' from GitHub trending content.
+
+    Returns (title, description) or None.
+    """
+    clean = _strip_markup(text)
+    m = _REPO_RE.search(clean)
+    if not m:
+        return None
+    owner, repo = m.group(1), m.group(2)
+    # Grab the text after the repo name as description
+    after = clean[m.end():].strip()
+    # Remove leading noise: language names, star counts, "Star", "Built by"
+    after = re.sub(
+        r"^(Star\b|Built by\b|stars? today\b|Sponsored\b).*", "", after,
+        flags=re.IGNORECASE,
+    ).strip()
+    # Take first sentence-like chunk (before numbers dominate)
+    desc_words = []
+    for word in after.split():
+        if re.fullmatch(r"[\d,]+", word) and len(desc_words) > 2:
+            break
+        desc_words.append(word)
+    desc = " ".join(desc_words).strip(" .,;-")
+    title = f"{owner}/{repo}"
+    return title, desc or repo
+
+
 def _page(title: str, body: str) -> str:
     """Wrap body HTML in the full page layout."""
     return f"""<!DOCTYPE html>
@@ -591,34 +622,47 @@ async def _load_digest_and_events(
     )
     events = list(events_result.scalars().all())
 
-    # Backfill description from raw_items for events missing summaries
-    needs_backfill = [
-        ev for ev in events
-        if not ev.summary_short and not ev.why_it_matters
-    ]
-    if needs_backfill:
-        raw_ids = [ev.raw_item_id for ev in needs_backfill]
-        raw_result = await db.execute(
-            select(RawItem.raw_item_id, RawItem.content_text)
-            .where(RawItem.raw_item_id.in_(raw_ids))
-        )
-        raw_texts = {row.raw_item_id: row.content_text for row in raw_result}
-        for ev in needs_backfill:
-            text = raw_texts.get(ev.raw_item_id)
-            if text:
-                clean = _strip_markup(text)
-                if not clean or not _is_readable(clean):
-                    # Content is garbage (just numbers, deps, etc.) — use title
-                    ev.summary_short = ev.title
-                    continue
-                dot = clean.find(". ")
-                if 20 < dot < 200:
-                    clean = clean[:dot + 1]
-                else:
-                    clean = clean[:150]
-                    if len(clean) >= 150:
-                        clean += "..."
-                ev.summary_short = clean
+    # Backfill summaries and fix garbage titles from raw content
+    raw_ids = [ev.raw_item_id for ev in events]
+    raw_result = await db.execute(
+        select(RawItem.raw_item_id, RawItem.content_text)
+        .where(RawItem.raw_item_id.in_(raw_ids))
+    )
+    raw_texts = {row.raw_item_id: row.content_text for row in raw_result}
+
+    for ev in events:
+        text = raw_texts.get(ev.raw_item_id) or ""
+
+        # Fix garbage titles (just numbers/punctuation, e.g. GitHub trending star counts)
+        if not _is_readable(ev.title):
+            repo_info = _extract_repo_info(text) if text else None
+            if repo_info:
+                ev.title, desc = repo_info
+                if not ev.summary_short:
+                    ev.summary_short = desc
+                continue
+            # No repo found — try first readable chunk from content
+            clean = _strip_markup(text) if text else ""
+            if clean and _is_readable(clean):
+                ev.title = clean[:100]
+
+        # Backfill summary for events missing one
+        if ev.summary_short or ev.why_it_matters:
+            continue
+        if not text:
+            continue
+        clean = _strip_markup(text)
+        if not clean or not _is_readable(clean):
+            ev.summary_short = ev.title
+            continue
+        dot = clean.find(". ")
+        if 20 < dot < 200:
+            clean = clean[:dot + 1]
+        else:
+            clean = clean[:150]
+            if len(clean) >= 150:
+                clean += "..."
+        ev.summary_short = clean
 
     return digest, events
 

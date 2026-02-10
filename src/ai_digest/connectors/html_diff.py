@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -122,6 +123,26 @@ class HTMLDiffConnector(BaseConnector):
         return items
 
 
+_REPO_RE = re.compile(r"([\w.-]+)\s*/\s*([\w.-]+)")
+
+
+def _extract_title(block: str) -> str:
+    """Extract a meaningful title from a diff block.
+
+    For GitHub-trending-style content, tries to find owner/repo.
+    Falls back to the first line with enough alpha chars.
+    """
+    m = _REPO_RE.search(block)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    # Fall back to first line that has real words
+    for line in block.split("\n"):
+        line = line.strip()
+        if len(line) > 10 and sum(c.isalpha() for c in line) > len(line) * 0.3:
+            return line[:120]
+    return block.split("\n")[0][:120]
+
+
 def _split_changes_into_items(change_text: str, source: Source) -> list[RawItemData]:
     """Split a block of changed text into individual items.
 
@@ -136,12 +157,12 @@ def _split_changes_into_items(change_text: str, source: Source) -> list[RawItemD
 
     items: list[RawItemData] = []
     for i, block in enumerate(blocks):
-        first_line = block.split("\n")[0][:120]
+        title = _extract_title(block)
         items.append(
             RawItemData(
                 external_id=hashlib.sha256(block.encode()).hexdigest()[:16],
                 url=source.source_url,
-                title=first_line,
+                title=title,
                 content_text=block,
                 published_at=datetime.now(timezone.utc),
             )
