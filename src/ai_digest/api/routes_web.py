@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,6 +122,7 @@ def _page(title: str, body: str) -> str:
     .badge {{
       display: inline-block; font-size: 11px; font-weight: 700;
       padding: 3px 10px; border-radius: 4px; margin-right: 6px;
+      vertical-align: middle;
     }}
     .badge-high {{ background: rgba(255,71,87,0.15); color: var(--high); }}
     .badge-medium {{ background: rgba(255,165,2,0.15); color: var(--medium); }}
@@ -140,17 +141,163 @@ def _page(title: str, body: str) -> str:
     .source-card .name {{ font-size: 16px; font-weight: 600; margin: 4px 0 8px; }}
     .source-card .details {{ font-size: 13px; color: var(--text-muted); }}
 
-    /* Event items */
-    .event {{
-      padding: 20px 0; border-bottom: 1px solid var(--border);
+    /* ---------- Redesigned Event Cards ---------- */
+    .event-card {{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }}
-    .event:last-child {{ border-bottom: none; }}
-    .event-title {{ font-size: 16px; font-weight: 600; margin-bottom: 6px; }}
-    .event-company {{ font-size: 13px; color: var(--accent); margin-bottom: 8px; }}
-    .event-body {{ font-size: 14px; color: var(--text-muted); }}
-    .event-body ul {{ padding-left: 20px; margin: 6px 0; }}
-    .event-body li {{ margin-bottom: 4px; color: var(--text); }}
-    .event-sources {{ font-size: 12px; color: var(--text-muted); margin-top: 8px; }}
+    .event-card:hover {{
+      border-color: var(--primary);
+      box-shadow: 0 2px 16px rgba(108,99,255,0.08);
+    }}
+    .event-card.severity-high {{ border-left: 4px solid var(--high); }}
+    .event-card.severity-medium {{ border-left: 4px solid var(--medium); }}
+    .event-card.severity-low {{ border-left: 4px solid var(--low); }}
+
+    .event-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }}
+    .event-header .event-title {{
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.4;
+      flex: 1;
+    }}
+    .event-header .event-title .rank {{
+      color: var(--primary-light);
+      margin-right: 6px;
+    }}
+    .event-tags {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }}
+    .event-company-line {{
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 12px;
+    }}
+
+    .event-body {{
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.7;
+    }}
+    .event-body .label {{
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin: 14px 0 6px 0;
+    }}
+    .event-body .label:first-child {{ margin-top: 0; }}
+    .event-body ul {{
+      padding-left: 18px;
+      margin: 4px 0 0 0;
+    }}
+    .event-body li {{
+      margin-bottom: 5px;
+      color: var(--text);
+    }}
+    .event-body li a {{
+      font-size: 12px;
+      color: var(--primary-light);
+      margin-left: 4px;
+    }}
+    .event-body p {{
+      margin: 4px 0 0 0;
+      color: var(--text-muted);
+    }}
+
+    .event-footer {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }}
+    .event-footer a {{
+      color: var(--primary-light);
+      font-weight: 500;
+    }}
+    .event-footer a:hover {{ color: var(--accent); }}
+    .event-source-links {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+    .event-source-links a {{
+      background: rgba(108,99,255,0.08);
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      transition: background 0.2s;
+    }}
+    .event-source-links a:hover {{
+      background: rgba(108,99,255,0.2);
+    }}
+
+    /* Compact events (everything else) */
+    .compact-event {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      transition: background 0.15s;
+    }}
+    .compact-event:hover {{ background: var(--surface2); }}
+    .compact-event .ce-title {{
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }}
+    .compact-event .ce-company {{
+      font-size: 12px;
+      color: var(--accent);
+      min-width: 100px;
+    }}
+
+    /* Download button */
+    .btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }}
+    .btn-outline {{
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }}
+    .btn-outline:hover {{
+      border-color: var(--primary-light);
+      color: var(--primary-light);
+      background: rgba(108,99,255,0.06);
+    }}
 
     /* Footer */
     footer {{
@@ -303,29 +450,26 @@ async def sources_page(db: AsyncSession = Depends(get_session)):
     return HTMLResponse(_page("Sources", body))
 
 
-@router.get("/view/{digest_date}", response_class=HTMLResponse)
-async def view_digest(
-    digest_date: date,
-    db: AsyncSession = Depends(get_session),
-):
-    """View a full digest with all events rendered."""
+async def _load_digest_and_events(
+    digest_date: date, db: AsyncSession
+) -> tuple[Digest | None, list[UpdateEvent]]:
+    """Shared helper to load a digest and its events."""
     stmt = select(Digest).where(Digest.digest_date == digest_date)
     result = await db.execute(stmt)
     digest = result.scalar_one_or_none()
-
     if not digest:
-        return HTMLResponse(_page("Not Found", '<div class="container"><h2>Digest not found</h2><p><a href="/archive">Back to archive</a></p></div>'), status_code=404)
-
-    # Get all events for this digest
+        return None, []
     events_result = await db.execute(
         select(UpdateEvent)
         .where(UpdateEvent.digest_id == digest.digest_id)
         .order_by(UpdateEvent.impact_score.desc())
     )
-    events = list(events_result.scalars().all())
+    return digest, list(events_result.scalars().all())
 
-    # Group by section
-    sections: dict[str, list] = {
+
+def _group_events(events: list[UpdateEvent]) -> dict[str, list[UpdateEvent]]:
+    """Group events by their digest section."""
+    sections: dict[str, list[UpdateEvent]] = {
         "top5": [], "developer": [], "models": [],
         "pricing": [], "incidents": [], "radar": [], "everything_else": [],
     }
@@ -335,12 +479,57 @@ async def view_digest(
             sections[sec].append(ev)
         else:
             sections["everything_else"].append(ev)
+    return sections
+
+
+SECTION_LABELS = {
+    "top5": "Top 5 — High Impact",
+    "developer": "Developer Changes",
+    "models": "Models & Capabilities",
+    "pricing": "Pricing & Limits",
+    "incidents": "Incidents & Reliability",
+    "radar": "Community Radar",
+    "everything_else": "Everything Else",
+}
+
+
+@router.get("/view/{digest_date}", response_class=HTMLResponse)
+async def view_digest(
+    digest_date: date,
+    db: AsyncSession = Depends(get_session),
+):
+    """View a full digest with all events rendered."""
+    digest, events = await _load_digest_and_events(digest_date, db)
+
+    if not digest:
+        return HTMLResponse(_page("Not Found", '<div class="container"><h2>Digest not found</h2><p><a href="/archive">Back to archive</a></p></div>'), status_code=404)
+
+    sections = _group_events(events)
+
+    def _extract_domain(url: str) -> str:
+        """Extract a short domain label from a URL."""
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(url).netloc
+            # Remove www. prefix
+            if host.startswith("www."):
+                host = host[4:]
+            return host
+        except Exception:
+            return url[:30]
 
     def render_event(ev: UpdateEvent, numbered: int = 0) -> str:
-        prefix = f"{numbered}. " if numbered else ""
         sev_class = ev.severity.lower() if ev.severity else "low"
-        cats = "".join(f'<span class="badge badge-cat">{c}</span>' for c in (ev.categories or [])[:2])
+        rank_html = f'<span class="rank">#{numbered}</span> ' if numbered else ""
 
+        # Tags row
+        tags = f'<span class="badge badge-{sev_class}">{ev.severity}</span>'
+        for c in (ev.categories or [])[:3]:
+            tags += f'<span class="badge badge-cat">{c}</span>'
+        if ev.breaking_change:
+            tags += '<span class="badge badge-high">BREAKING</span>'
+
+        # What changed
         what_changed_html = ""
         if ev.what_changed and isinstance(ev.what_changed, list):
             items = ""
@@ -348,72 +537,174 @@ async def view_digest(
                 if isinstance(item, dict):
                     fact = item.get("fact", "")
                     cite = item.get("citation_url", "")
-                    cite_link = f' <a href="{cite}">[source]</a>' if cite else ""
+                    cite_link = f' <a href="{cite}" target="_blank">[src]</a>' if cite else ""
                     items += f"<li>{fact}{cite_link}</li>"
                 else:
                     items += f"<li>{item}</li>"
-            what_changed_html = f"<strong>What changed:</strong><ul>{items}</ul>"
+            what_changed_html = f'<span class="label">What changed</span><ul>{items}</ul>'
 
-        why_html = f"<p><strong>Why it matters:</strong> {ev.why_it_matters}</p>" if ev.why_it_matters else ""
-        sources_html = ""
+        # Why it matters
+        why_html = ""
+        if ev.why_it_matters:
+            why_html = f'<span class="label">Why it matters</span><p>{ev.why_it_matters}</p>'
+
+        # Source links
+        source_links = ""
         if ev.citations:
-            links = ", ".join(f'<a href="{u}">{u[:50]}...</a>' if len(u) > 50 else f'<a href="{u}">{u}</a>' for u in ev.citations)
-            sources_html = f'<div class="event-sources">Sources: {links} &middot; {ev.confidence} &middot; Tier {ev.trust_tier}</div>'
+            links = "".join(
+                f'<a href="{u}" target="_blank">{_extract_domain(u)}</a>'
+                for u in ev.citations
+            )
+            source_links = f'<div class="event-source-links">{links}</div>'
+
+        # Confidence + tier
+        meta_right = f'{ev.confidence} &middot; Tier {ev.trust_tier}'
+        if ev.published_at:
+            meta_right = ev.published_at.strftime('%b %d, %H:%M') + " &middot; " + meta_right
 
         return f"""
-        <div class="event">
-          <div class="event-title">{prefix}{ev.title}</div>
-          <div><span class="badge badge-{sev_class}">{ev.severity}</span>{cats}</div>
-          <div class="event-company">{ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}</div>
+        <div class="event-card severity-{sev_class}">
+          <div class="event-header">
+            <div class="event-title">{rank_html}{ev.title}</div>
+          </div>
+          <div class="event-tags">{tags}</div>
+          <div class="event-company-line">{ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}</div>
           <div class="event-body">{what_changed_html}{why_html}</div>
-          {sources_html}
+          <div class="event-footer">
+            {source_links}
+            <span>{meta_right}</span>
+          </div>
         </div>"""
 
     def render_compact(ev: UpdateEvent) -> str:
         sev_class = ev.severity.lower() if ev.severity else "low"
-        link = f'<a href="{ev.citations[0]}">[source]</a>' if ev.citations else ""
-        return f'<div style="padding:6px 0;font-size:14px;">&#8226; {ev.title} <span class="badge badge-{sev_class}">{ev.severity}</span> {link}</div>'
+        link = ""
+        if ev.citations:
+            link = f'<a href="{ev.citations[0]}" target="_blank">{_extract_domain(ev.citations[0])}</a>'
+        return f"""
+        <div class="compact-event">
+          <span class="badge badge-{sev_class}" style="flex-shrink:0;">{ev.severity}</span>
+          <span class="ce-company">{ev.company_name}</span>
+          <span class="ce-title">{ev.title}</span>
+          {link}
+        </div>"""
 
     # Build sections HTML
     content = ""
+    section_order = ["top5", "developer", "models", "pricing", "incidents", "radar", "everything_else"]
 
-    if sections["top5"]:
-        items = "".join(render_event(ev, i + 1) for i, ev in enumerate(sections["top5"]))
-        content += f'<div class="section-title">[1] Top 5 — High Impact</div><div class="card">{items}</div>'
+    for idx, sec_key in enumerate(section_order, 1):
+        if not sections[sec_key]:
+            continue
+        label = f"[{idx}] {SECTION_LABELS[sec_key]}"
+        if sec_key == "everything_else":
+            items = "".join(render_compact(ev) for ev in sections[sec_key])
+            content += f'<div class="section-title">{label}</div><div class="card">{items}</div>'
+        elif sec_key == "top5":
+            items = "".join(render_event(ev, i + 1) for i, ev in enumerate(sections[sec_key]))
+            content += f'<div class="section-title">{label}</div>{items}'
+        else:
+            items = "".join(render_event(ev) for ev in sections[sec_key])
+            content += f'<div class="section-title">{label}</div>{items}'
 
-    if sections["developer"]:
-        items = "".join(render_event(ev) for ev in sections["developer"])
-        content += f'<div class="section-title">[2] Developer Changes</div><div class="card">{items}</div>'
-
-    if sections["models"]:
-        items = "".join(render_event(ev) for ev in sections["models"])
-        content += f'<div class="section-title">[3] Models &amp; Capabilities</div><div class="card">{items}</div>'
-
-    if sections["pricing"]:
-        items = "".join(render_event(ev) for ev in sections["pricing"])
-        content += f'<div class="section-title">[4] Pricing &amp; Limits</div><div class="card">{items}</div>'
-
-    if sections["incidents"]:
-        items = "".join(render_event(ev) for ev in sections["incidents"])
-        content += f'<div class="section-title">[5] Incidents &amp; Reliability</div><div class="card">{items}</div>'
-
-    if sections["radar"]:
-        items = "".join(render_event(ev) for ev in sections["radar"])
-        content += f'<div class="section-title">[6] Community Radar</div><div class="card">{items}</div>'
-
-    if sections["everything_else"]:
-        items = "".join(render_compact(ev) for ev in sections["everything_else"])
-        content += f'<div class="section-title">[7] Everything Else</div><div class="card">{items}</div>'
+    # Severity summary counts
+    high_ct = sum(1 for ev in events if ev.severity == "HIGH")
+    med_ct = sum(1 for ev in events if ev.severity == "MEDIUM")
+    low_ct = sum(1 for ev in events if ev.severity == "LOW")
 
     body = f"""
     <div class="container">
-      <div style="margin-bottom: 32px;">
-        <a href="/archive" style="font-size:13px;">&larr; Back to Archive</a>
-        <h2 style="margin-top:12px;">{digest_date.strftime('%B %d, %Y')}</h2>
-        <p style="color:var(--text-muted);">{digest.event_count} items &middot; Generated {digest.generated_at.strftime('%H:%M UTC') if digest.generated_at else ''}</p>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom: 32px;">
+        <div>
+          <a href="/archive" style="font-size:13px;">&larr; Back to Archive</a>
+          <h2 style="margin-top:12px;">{digest_date.strftime('%B %d, %Y')}</h2>
+          <p style="color:var(--text-muted); margin-top:4px;">
+            {digest.event_count} items &middot;
+            <span class="badge badge-high">{high_ct} High</span>
+            <span class="badge badge-medium">{med_ct} Medium</span>
+            <span class="badge badge-low">{low_ct} Low</span>
+            &middot; Generated {digest.generated_at.strftime('%H:%M UTC') if digest.generated_at else ''}
+          </p>
+        </div>
+        <a href="/view/{digest_date.isoformat()}/download" class="btn btn-outline" download>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Log
+        </a>
       </div>
       {"<div class='card' style='border-left:3px solid var(--primary);'><p>" + digest.overview_text + "</p></div>" if digest.overview_text else ""}
       {content}
     </div>"""
 
     return HTMLResponse(_page(digest_date.strftime('%B %d, %Y'), body))
+
+
+@router.get("/view/{digest_date}/download")
+async def download_digest_log(
+    digest_date: date,
+    db: AsyncSession = Depends(get_session),
+):
+    """Generate and return a downloadable Markdown log of the digest."""
+    digest, events = await _load_digest_and_events(digest_date, db)
+
+    if not digest:
+        return PlainTextResponse("Digest not found.", status_code=404)
+
+    sections = _group_events(events)
+
+    lines: list[str] = []
+    lines.append(f"# AI Daily Digest — {digest_date.strftime('%B %d, %Y')}")
+    lines.append(f"Generated: {digest.generated_at.strftime('%Y-%m-%d %H:%M UTC') if digest.generated_at else 'N/A'}")
+    lines.append(f"Total items: {digest.event_count}")
+    lines.append("")
+
+    if digest.overview_text:
+        lines.append("## Overview")
+        lines.append(digest.overview_text)
+        lines.append("")
+
+    section_order = ["top5", "developer", "models", "pricing", "incidents", "radar", "everything_else"]
+
+    for idx, sec_key in enumerate(section_order, 1):
+        if not sections[sec_key]:
+            continue
+        lines.append(f"## [{idx}] {SECTION_LABELS[sec_key]}")
+        lines.append("")
+
+        for i, ev in enumerate(sections[sec_key], 1):
+            prefix = f"{i}. " if sec_key == "top5" else "- "
+            lines.append(f"{prefix}**{ev.title}**")
+            lines.append(f"  Company: {ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}")
+            lines.append(f"  Severity: {ev.severity} | Score: {ev.impact_score:.1f} | Confidence: {ev.confidence}")
+            if ev.categories:
+                lines.append(f"  Categories: {', '.join(ev.categories)}")
+
+            if ev.what_changed and isinstance(ev.what_changed, list):
+                lines.append("  What changed:")
+                for item in ev.what_changed:
+                    if isinstance(item, dict):
+                        fact = item.get("fact", "")
+                        cite = item.get("citation_url", "")
+                        cite_str = f" ({cite})" if cite else ""
+                        lines.append(f"    - {fact}{cite_str}")
+                    else:
+                        lines.append(f"    - {item}")
+
+            if ev.why_it_matters:
+                lines.append(f"  Why it matters: {ev.why_it_matters}")
+
+            if ev.citations:
+                lines.append(f"  Sources: {', '.join(ev.citations)}")
+
+            lines.append("")
+
+    lines.append("---")
+    lines.append("AI Daily Digest — automated, citation-backed AI industry updates.")
+
+    content = "\n".join(lines)
+    filename = f"ai-digest-{digest_date.isoformat()}.md"
+
+    return PlainTextResponse(
+        content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
