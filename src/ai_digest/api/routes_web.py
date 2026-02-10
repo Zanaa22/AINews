@@ -22,12 +22,30 @@ from ai_digest.models.update_event import UpdateEvent
 router = APIRouter(tags=["web"])
 
 _TAG_RE = re.compile(r"<[^>]+>")
+_MD_HEADER_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+_MD_NOISE_RE = re.compile(
+    r"^(\s*[-*]\s*(Updated dependencies|Bumped|@[\w/.-]+).*$)", re.MULTILINE
+)
 
 
-def _strip_html(text: str) -> str:
-    """Remove HTML tags and collapse whitespace."""
+def _strip_markup(text: str) -> str:
+    """Remove HTML tags, markdown formatting, and collapse whitespace."""
     clean = _TAG_RE.sub(" ", text)
-    return re.sub(r"\s+", " ", clean).strip()
+    clean = _MD_HEADER_RE.sub("", clean)
+    clean = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", clean)  # [text](url) → text
+    clean = re.sub(r"`([^`]*)`", r"\1", clean)  # `code` → code
+    clean = re.sub(r"^[\s*-]+", "", clean, flags=re.MULTILINE)  # list markers
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean
+
+
+def _is_readable(text: str) -> bool:
+    """Check if text has enough real words (not just numbers/punctuation)."""
+    words = text.split()
+    if len(words) < 3:
+        return False
+    alpha_words = sum(1 for w in words if re.search(r"[a-zA-Z]{2,}", w))
+    return alpha_words / len(words) > 0.3
 
 
 def _page(title: str, body: str) -> str:
@@ -588,16 +606,17 @@ async def _load_digest_and_events(
         for ev in needs_backfill:
             text = raw_texts.get(ev.raw_item_id)
             if text:
-                # Strip HTML tags, then take first sentence or 150 chars
-                clean = _strip_html(text)
-                if not clean:
+                clean = _strip_markup(text)
+                if not clean or not _is_readable(clean):
+                    # Content is garbage (just numbers, deps, etc.) — use title
+                    ev.summary_short = ev.title
                     continue
                 dot = clean.find(". ")
                 if 20 < dot < 200:
                     clean = clean[:dot + 1]
                 else:
                     clean = clean[:150]
-                    if len(_strip_html(text)) > 150:
+                    if len(clean) >= 150:
                         clean += "..."
                 ev.summary_short = clean
 
