@@ -197,7 +197,17 @@ def _page(title: str, body: str) -> str:
       font-size: 13px;
       color: var(--accent);
       font-weight: 600;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
+    }}
+    .event-summary {{
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: rgba(108,99,255,0.04);
+      border-radius: 6px;
+      border-left: 3px solid var(--primary);
     }}
 
     .event-body {{
@@ -275,15 +285,30 @@ def _page(title: str, body: str) -> str:
       transition: background 0.15s;
     }}
     .compact-event:hover {{ background: var(--surface2); }}
-    .compact-event .ce-title {{
+    .compact-event .ce-content {{
       flex: 1;
+      min-width: 0;
+    }}
+    .compact-event .ce-title {{
       font-size: 14px;
       font-weight: 500;
+      display: block;
+    }}
+    .compact-event .ce-summary {{
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-top: 3px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }}
     .compact-event .ce-company {{
       font-size: 12px;
       color: var(--accent);
       min-width: 100px;
+      flex-shrink: 0;
     }}
 
     /* Download button */
@@ -640,6 +665,7 @@ async def view_digest(
           </div>
           <div class="event-tags">{tags}</div>
           <div class="event-company-line">{ev.company_name}{(' / ' + ev.product_line) if ev.product_line else ''}</div>
+          <div class="event-summary">{ev.summary_short or ev.summary_medium or ev.why_it_matters or ''}</div>
           <div class="event-body">{what_changed_html}{why_html}</div>
           <div class="event-footer">
             {source_links}
@@ -652,11 +678,16 @@ async def view_digest(
         link = ""
         if ev.citations:
             link = f'<a href="{ev.citations[0]}" target="_blank">{_extract_domain(ev.citations[0])}</a>'
+        summary = ev.summary_short or ev.summary_medium or ev.why_it_matters or ""
+        summary_html = f'<div class="ce-summary">{summary}</div>' if summary else ""
         return f"""
         <div class="compact-event">
           <span class="badge badge-{sev_class}" style="flex-shrink:0;">{ev.severity}</span>
           <span class="ce-company">{ev.company_name}</span>
-          <span class="ce-title">{ev.title}</span>
+          <div class="ce-content">
+            <span class="ce-title">{ev.title}</span>
+            {summary_html}
+          </div>
           {link}
         </div>"""
 
