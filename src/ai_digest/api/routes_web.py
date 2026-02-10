@@ -109,6 +109,17 @@ def _page(title: str, body: str) -> str:
     .card:hover {{ border-color: var(--primary); }}
     .card h3 {{ font-size: 18px; margin-bottom: 8px; }}
     .card .meta {{ font-size: 13px; color: var(--text-muted); }}
+    .card-summary {{
+      font-size: 13px; color: var(--text-muted); line-height: 1.5;
+      margin-top: 10px; padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }}
+    .preview-list {{ margin-top: 10px; }}
+    .preview-item {{
+      font-size: 13px; color: var(--text);
+      padding: 4px 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }}
 
     /* Section titles */
     .section-title {{
@@ -348,12 +359,42 @@ async def homepage(db: AsyncSession = Depends(get_session)):
     )
     digests = result.scalars().all()
 
+    # Load top 3 events per digest for preview
+    digest_ids = [d.digest_id for d in digests]
+    top_events_by_digest: dict[str, list[UpdateEvent]] = {str(d.digest_id): [] for d in digests}
+    if digest_ids:
+        ev_result = await db.execute(
+            select(UpdateEvent)
+            .where(UpdateEvent.digest_id.in_(digest_ids))
+            .order_by(UpdateEvent.impact_score.desc())
+        )
+        for ev in ev_result.scalars().all():
+            bucket = top_events_by_digest.get(str(ev.digest_id), [])
+            if len(bucket) < 3:
+                bucket.append(ev)
+                top_events_by_digest[str(ev.digest_id)] = bucket
+
     digest_cards = ""
     for d in digests:
+        overview_snippet = ""
+        if d.overview_text:
+            text = d.overview_text[:180]
+            if len(d.overview_text) > 180:
+                text += "..."
+            overview_snippet = f'<div class="card-summary">{text}</div>'
+
+        top_evs = top_events_by_digest.get(str(d.digest_id), [])
+        preview_items = ""
+        for ev in top_evs:
+            sev_class = ev.severity.lower() if ev.severity else "low"
+            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {ev.title}</div>'
+
         digest_cards += f"""
         <a href="/view/{d.digest_date.isoformat()}" class="card" style="display:block;">
           <h3>{d.digest_date.strftime('%B %d, %Y')}</h3>
           <div class="meta">{d.event_count} items &middot; Generated {d.generated_at.strftime('%H:%M UTC') if d.generated_at else 'N/A'}</div>
+          {overview_snippet}
+          <div class="preview-list">{preview_items}</div>
         </a>"""
 
     if not digest_cards:
@@ -389,8 +430,36 @@ async def archive_page(db: AsyncSession = Depends(get_session)):
     )
     digests = result.scalars().all()
 
+    # Load top 3 events per digest for preview
+    digest_ids = [d.digest_id for d in digests]
+    top_events_by_digest: dict[str, list[UpdateEvent]] = {str(d.digest_id): [] for d in digests}
+    if digest_ids:
+        ev_result = await db.execute(
+            select(UpdateEvent)
+            .where(UpdateEvent.digest_id.in_(digest_ids))
+            .order_by(UpdateEvent.impact_score.desc())
+        )
+        for ev in ev_result.scalars().all():
+            bucket = top_events_by_digest.get(str(ev.digest_id), [])
+            if len(bucket) < 3:
+                bucket.append(ev)
+                top_events_by_digest[str(ev.digest_id)] = bucket
+
     cards = ""
     for d in digests:
+        overview_snippet = ""
+        if d.overview_text:
+            text = d.overview_text[:180]
+            if len(d.overview_text) > 180:
+                text += "..."
+            overview_snippet = f'<div class="card-summary">{text}</div>'
+
+        top_evs = top_events_by_digest.get(str(d.digest_id), [])
+        preview_items = ""
+        for ev in top_evs:
+            sev_class = ev.severity.lower() if ev.severity else "low"
+            preview_items += f'<div class="preview-item"><span class="badge badge-{sev_class}" style="font-size:10px;padding:2px 6px;">{ev.severity}</span> {ev.title}</div>'
+
         cards += f"""
         <a href="/view/{d.digest_date.isoformat()}" class="card" style="display:block;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -401,6 +470,8 @@ async def archive_page(db: AsyncSession = Depends(get_session)):
             Generated {d.generated_at.strftime('%H:%M UTC') if d.generated_at else 'N/A'}
             {' &middot; Delivered via ' + ', '.join(d.delivery_channels) if d.delivery_channels else ''}
           </div>
+          {overview_snippet}
+          <div class="preview-list">{preview_items}</div>
         </a>"""
 
     if not cards:
