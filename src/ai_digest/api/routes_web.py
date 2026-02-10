@@ -201,14 +201,19 @@ def _page(title: str, body: str) -> str:
       margin-bottom: 8px;
     }}
     .event-summary {{
-      font-size: 14px;
-      color: var(--text);
-      line-height: 1.6;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
       margin-bottom: 14px;
       padding: 10px 14px;
       background: rgba(108,99,255,0.04);
       border-radius: 6px;
       border-left: 3px solid var(--primary);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      max-height: 4.5em;
     }}
 
     .event-body {{
@@ -578,7 +583,16 @@ async def _load_digest_and_events(
         for ev in needs_backfill:
             text = raw_texts.get(ev.raw_item_id)
             if text:
-                ev.summary_short = text[:300]
+                # Clean up: take first sentence or first 150 chars
+                clean = text.strip().replace("\n", " ").replace("\r", "")
+                dot = clean.find(". ")
+                if 20 < dot < 200:
+                    clean = clean[:dot + 1]
+                else:
+                    clean = clean[:150]
+                    if len(text.strip()) > 150:
+                        clean += "..."
+                ev.summary_short = clean
 
     return digest, events
 
