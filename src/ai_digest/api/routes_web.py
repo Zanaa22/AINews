@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timezone
 from html import escape as _esc
 from pathlib import Path
@@ -19,6 +20,14 @@ from ai_digest.models.source import Source
 from ai_digest.models.update_event import UpdateEvent
 
 router = APIRouter(tags=["web"])
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags and collapse whitespace."""
+    clean = _TAG_RE.sub(" ", text)
+    return re.sub(r"\s+", " ", clean).strip()
 
 
 def _page(title: str, body: str) -> str:
@@ -579,14 +588,16 @@ async def _load_digest_and_events(
         for ev in needs_backfill:
             text = raw_texts.get(ev.raw_item_id)
             if text:
-                # Clean up: take first sentence or first 150 chars
-                clean = text.strip().replace("\n", " ").replace("\r", "")
+                # Strip HTML tags, then take first sentence or 150 chars
+                clean = _strip_html(text)
+                if not clean:
+                    continue
                 dot = clean.find(". ")
                 if 20 < dot < 200:
                     clean = clean[:dot + 1]
                 else:
                     clean = clean[:150]
-                    if len(text.strip()) > 150:
+                    if len(_strip_html(text)) > 150:
                         clean += "..."
                 ev.summary_short = clean
 
